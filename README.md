@@ -54,7 +54,7 @@
 
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Axenide/Ax-Shell/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ackerman010/Quiet-Shell/main/install.sh | bash
 ```
 
 ### Manual Installation
