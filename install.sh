@@ -53,21 +53,22 @@ DNF_PACKAGES=(
 COPR_PACKAGES=(
     cliphist
     gpu-screen-recorder
-    hypridle
-    hyprlock
-    hyprpicker
-    hyprshot
-    hyprsunset
-    swww
     nerd-fonts               # For ttf-nerd-fonts-symbols-mono (installs a collection of Nerd Fonts)
 )
 
 # Packages that are specific to the original Arch setup or less common,
 # and may need to be built from source or installed manually on Fedora.
 BUILD_FROM_SOURCE_PACKAGES=(
-    matugen     # Original: matugen-bin. A Python project.
-    gray        # Original: gray-git. A theme by Axenide.
-    uwsm        # Wayland Session Manager by Axenide, a dependency of Ax-Shell itself.
+    hyprland                # Core Hyprland compositor
+    hypridle                # Hyprland idle daemon
+    hyprlock                # Hyprland screen locker
+    hyprpicker              # Hyprland color picker
+    hyprshot                # Hyprland screenshot utility
+    hyprsunset              # Hyprland feature/utility, potentially part of Hyprland
+    swww                    # Wallpaper daemon for Wayland
+    matugen                 # Original: matugen-bin. A Python project.
+    gray                    # Original: gray-git. A theme by Axenide.
+    uwsm                    # Wayland Session Manager by Axenide, a dependency of Ax-Shell itself.
 )
 
 # Prevent running as root for safety
@@ -80,11 +81,8 @@ echo "Updating DNF package cache..."
 sudo dnf check-update || true # Allow check-update to fail without stopping script if no updates are available
 
 # Enable necessary COPR repositories
-# These COPRs provide many of the Hyprland-related and other tools.
-echo "Enabling COPR repositories..."
-# COPR for Hyprland and related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset, swww)
-# Using %fedora to dynamically match the current Fedora version.
-sudo dnf copr enable solopasha/hyprland -y -q || { echo "Error: Failed to enable solopasha/hyprland COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
+# These COPRs provide general purpose tools or those less problematic than Hyprland.
+echo "Enabling COPR repositories for remaining packages..."
 # COPR for cliphist
 sudo dnf copr enable atim/cliphist -y -q || { echo "Error: Failed to enable atim/cliphist COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 # COPR for gpu-screen-recorder
@@ -109,11 +107,39 @@ fi
 
 # --- Manual Installation Instructions ---
 echo ""
-echo "--- Manual Installation May Be Required ---"
-echo "The following packages are not directly available via DNF or common COPRs."
-echo "You might need to install them manually or build them from source."
+echo "--- MANUAL INSTALLATION REQUIRED FOR HYPRLAND AND RELATED COMPONENTS ---"
+echo "Due to potential COPR availability issues for Fedora $FEDORA_RELEASE_VERSION, "
+echo "Hyprland and its ecosystem tools need to be built from source."
+echo "You will need to install build dependencies first:"
+echo "sudo dnf install -y meson ninja-build gcc-c++ pkg-config wayland-devel wayland-protocols-devel \
+                       libinput-devel libxkbcommon-devel pixman-devel pango-devel cairo-devel \
+                       systemd-devel seatd-devel polkit-devel xdg-desktop-portal-devel libdisplay-info-devel \
+                       libdrm-devel systemd-libs-devel ncurses-devel libevdev-devel upower-devel \
+                       wlroots-devel # This is crucial for Hyprland"
 
-# Instructions for matugen
+echo ""
+echo "- Hyprland and its related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset):"
+echo "  All of these are typically built from the Hyprland source. Follow the official Hyprland wiki for detailed build instructions."
+echo "  Official Hyprland Wiki: https://wiki.hyprland.org/Getting-Started/Installing-Hyprland/"
+echo "  Basic steps (may vary depending on official instructions):"
+echo "    git clone --recursive https://github.com/hyprwm/Hyprland.git ~/Hyprland-source"
+echo "    cd ~/Hyprland-source"
+echo "    meson build --prefix /usr"
+echo "    ninja -C build"
+echo "    sudo ninja -C build install"
+echo "  Note: The utilities (hypridle, hyprlock, hyprpicker, hyprshot) are often compiled automatically as part of the Hyprland build or have their own sub-projects within the Hyprland repository. Refer to the wiki for specifics."
+
+echo ""
+echo "- swww (Wallpaper daemon):"
+echo "  This also needs to be built from source. Check its GitHub page for specific build dependencies and instructions."
+echo "  GitHub: https://github.com/Horus645/swww"
+echo "  Example basic build steps (may vary):"
+echo "    sudo dnf install -y rust cargo # Install Rust toolchain if not already present"
+echo "    git clone https://github.com/Horus645/swww.git ~/swww-source"
+echo "    cd ~/swww-source"
+echo "    cargo build --release"
+echo "    sudo install -Dm755 target/release/swww /usr/local/bin/swww"
+
 echo ""
 echo "- matugen (Original: matugen-bin): This is a Python-based utility."
 echo "  You might be able to install it via pip or clone its repository and run it directly."
@@ -123,13 +149,11 @@ echo "  Or, to clone and use:"
 echo "    git clone https://github.com/material-foundation/matugen.git ~/matugen-source"
 echo "    # Follow matugen's specific installation/usage instructions."
 
-# Instructions for gray
 echo ""
 echo "- gray (Original: gray-git): This appears to be a theme or utility specific to Axenide's projects."
 echo "  Please refer to its GitHub repository for installation instructions, or manually place its files."
 echo "  GitHub: https://github.com/Axenide/gray"
 
-# Instructions for uwsm
 echo ""
 echo "- uwsm (Wayland Session Manager): This is a critical dependency for Ax-Shell and likely needs to be built from source."
 echo "  Please refer to its GitHub repository for detailed build instructions:"
