@@ -30,7 +30,7 @@ DNF_PACKAGES=(
     python3-fabric           # Equivalent to python-fabric-git, provides stable Fabric
     python3-gobject          # Equivalent to python-gobject
     python3-ijson            # Equivalent to python-ijson
-    python3-numpy            # Equivalent to python-numpy
+    python3-numpy           # Equivalent to python-numpy
     python3-pillow           # Equivalent to python-pillow
     python3-psutil           # Equivalent to python-psutil
     python3-pywayland        # Equivalent to python-pywayland
@@ -152,7 +152,7 @@ TEMP_ZIP="/tmp/zed-sans-1.2.0.zip"
 
 # Check if Zed fonts are already installed
 if [ ! -d "$FONT_DIR" ]; then
-    echo "Downloading Zed fonts from $FONT_URL..."
+    echo "Downloading Zed fonts from "$FONT_URL"..."
     curl -L -o "$TEMP_ZIP" "$FONT_URL"
 
     echo "Extracting Zed fonts to "$FONT_DIR"..."
