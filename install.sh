@@ -11,7 +11,8 @@ INSTALL_DIR="$HOME/.config/Ax-Shell"
 DNF_PACKAGES=(
     brightnessctl
     cava
-    gnome-bluetooth          # Equivalent to gnome-bluetooth-3.0
+    gnome-bluetooth          # Equivalent to gnome-bluetooth-3.0 (runtime)
+    gnome-bluetooth-libs-devel # Development files for gnome-bluetooth (added based on dnf search)
     gobject-introspection
     ImageMagick              # Equivalent to imagemagick
     libnotify
@@ -144,7 +145,7 @@ if [ ! -d "$FONT_DIR" ]; then
     echo "Downloading Zed fonts from $FONT_URL..."
     curl -L -o "$TEMP_ZIP" "$FONT_URL"
 
-    echo "Extracting Zed fonts to $FONT_DIR..."
+    echo "Extracting Zed fonts to "$FONT_DIR"..."
     mkdir -p "$FONT_DIR"
     unzip -o "$TEMP_ZIP" -d "$FONT_DIR"
 
