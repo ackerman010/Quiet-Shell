@@ -67,6 +67,8 @@ DNF_PACKAGES=(
     vte3                     # Equivalent to vte3
     gdk-pixbuf2-modules      # Provides WebP support for GTK applications (replaces webp-pixbuf-loader)
     wl-clipboard
+    python3-pip             # Added: For installing Python packages via pip
+    python3-devel           # Added: For building some Python modules from source
 )
 
 # All packages that were previously in COPR_PACKAGES are now in BUILD_FROM_SOURCE_PACKAGES
@@ -137,6 +139,12 @@ echo "sudo dnf install -y # Ensure Python build dependencies if any Python packa
 
 echo ""
 echo "--- Specific Build Instructions for Key Components: ---"
+
+echo ""
+echo "- **Python Dependencies (e.g., 'fabric'):**"
+echo "  Many Python projects rely on `pip` for their dependencies. Since 'fabric' was specifically missing:"
+echo "  pip install fabric # Install the Python 'fabric' library"
+echo "  # If you encounter other Python module errors, try 'pip install <missing-module-name>'"
 
 echo ""
 echo "- Hyprland and its related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset):"
