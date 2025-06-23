@@ -47,7 +47,7 @@
 > [!NOTE]
 > You need a functioning Hyprland installation.
 
-### Arch Linux
+### Fedora Linux
 
 > [!TIP]
 > This command also works for updating an existing installation!
