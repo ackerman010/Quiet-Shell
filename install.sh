@@ -1,305 +1,193 @@
-#!/usr/bin/env bash
-# install.sh — Automated Ax-Shell installer for Fedora 42
-set -euo pipefail
+#!/bin/bash
 
-# Timestamp for backups
-TS=$(date +"%Y%m%d-%H%M%S")
+set -e      # Exit immediately if a command fails
+set -u      # Treat unset variables as errors
+set -o pipefail  # Prevent errors in a pipeline from being masked
 
-# --- GLOBAL PKG_CONFIG_PATH SETUP ---
-# Prioritize /usr/local/lib/pkgconfig for source-built libraries
-# Use :- to initialize if PKG_CONFIG_PATH is not already set, preventing unbound variable error
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-echo "Global PKG_CONFIG_PATH set to: $PKG_CONFIG_PATH"
-
-# Repository details for Ax-Shell
 REPO_URL="https://github.com/Axenide/Ax-Shell.git"
 INSTALL_DIR="$HOME/.config/Ax-Shell"
 
-# --- Helper Functions ---
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
+# DNF packages available in official Fedora repositories
+DNF_PACKAGES=(
+    brightnessctl
+    cava
+    gnome-bluetooth          # Equivalent to gnome-bluetooth-3.0
+    gobject-introspection
+    ImageMagick              # Equivalent to imagemagick
+    libnotify
+    google-noto-color-emoji-fonts # Equivalent to noto-fonts-emoji
+    nvtop
+    playerctl
+    python3-fabric           # Equivalent to python-fabric-git, provides stable Fabric
+    python3-gobject          # Equivalent to python-gobject
+    python3-ijson            # Equivalent to python-ijson
+    python3-numpy            # Equivalent to python-numpy
+    python3-pillow           # Equivalent to python-pillow
+    python3-psutil           # Equivalent to python-psutil
+    python3-pywayland        # Equivalent to python-pywayland
+    python3-requests         # Equivalent to python-requests
+    python3-setproctitle     # Equivalent to python-setproctitle
+    python3-toml             # Equivalent to python-toml
+    python3-watchdog         # Equivalent to python-watchdog
+    swappy
+    tesseract
+    tmux
+    unzip
+    upower
+    vte3                     # Equivalent to vte3
+    gdk-pixbuf2-modules      # Provides WebP support for GTK applications (replaces webp-pixbuf-loader)
+    wl-clipboard
+)
 
-# Function to clean up a temporary directory
-cleanup_temp_dir() {
-    local dir="$1"
-    if [ -d "$dir" ]; then
-        echo "Cleaning up temporary directory: $dir"
-        sudo rm -rf "$dir"
-    fi
-}
+# Packages that typically require COPR repositories on Fedora
+# These are often development versions or niche tools.
+COPR_PACKAGES=(
+    cliphist
+    gpu-screen-recorder
+    hypridle
+    hyprlock
+    hyprpicker
+    hyprshot
+    hyprsunset
+    swww
+    nerd-fonts               # For ttf-nerd-fonts-symbols-mono (installs a collection of Nerd Fonts)
+)
 
-# --- Main Script Execution ---
+# Packages that are specific to the original Arch setup or less common,
+# and may need to be built from source or installed manually on Fedora.
+BUILD_FROM_SOURCE_PACKAGES=(
+    matugen     # Original: matugen-bin. A Python project.
+    gray        # Original: gray-git. A theme by Axenide.
+    uwsm        # Wayland Session Manager by Axenide, a dependency of Ax-Shell itself.
+)
 
-# Prevent running as root
+# Prevent running as root for safety
 if [ "$(id -u)" -eq 0 ]; then
-    echo "Error: Please do not run this script as root. Run it as a regular user using 'bash ./install.sh'."
+    echo "Please do not run this script as root."
     exit 1
 fi
 
-# 1. Clone or update the Ax-Shell repository
-echo "[1/10] Cloning or updating Ax-Shell repository..."
+echo "Updating DNF package cache..."
+sudo dnf check-update || true # Allow check-update to fail without stopping script if no updates are available
+
+# Enable necessary COPR repositories
+# These COPRs provide many of the Hyprland-related and other tools.
+echo "Enabling COPR repositories..."
+# COPR for Hyprland and related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset, swww)
+sudo dnf copr enable ryuuts/hyprland -y || { echo "Error: Failed to enable ryuuts/hyprland COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+# COPR for cliphist
+sudo dnf copr enable atim/cliphist -y || { echo "Error: Failed to enable atim/cliphist COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+# COPR for gpu-screen-recorder
+sudo dnf copr enable atim/gpu-screen-recorder -y || { echo "Error: Failed to enable atim/gpu-screen-recorder COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+# COPR for Nerd Fonts (replaces ttf-nerd-fonts-symbols-mono)
+sudo dnf copr enable atim/nerd-fonts -y || { echo "Error: Failed to enable atim/nerd-fonts COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+
+# Install required DNF packages and COPR packages
+echo "Installing required DNF and COPR packages..."
+# Using --allowerasing can resolve conflicts but use with caution. -y for non-interactive install.
+sudo dnf install -y "${DNF_PACKAGES[@]}" "${COPR_PACKAGES[@]}" || { echo "Warning: Some DNF/COPR packages failed to install. Continuing with the script."; }
+
+# Clone or update the Ax-Shell repository
 if [ -d "$INSTALL_DIR" ]; then
-    echo "  - Updating existing Ax-Shell installation..."
-    git -C "$INSTALL_DIR" pull || { echo "Warning: Failed to pull latest changes for Ax-Shell. Continuing with existing files."; }
+    echo "Updating Ax-Shell..."
+    git -C "$INSTALL_DIR" pull
 else
-    echo "  - Cloning Ax-Shell from $REPO_URL to $INSTALL_DIR..."
-    git clone --depth=1 "$REPO_URL" "$INSTALL_DIR" || { echo "Error: Failed to clone Ax-Shell repository. Exiting."; exit 1; }
-fi
-echo "Ax-Shell repository setup complete."
-
-
-# 2. System update and enable COPRs
-echo "[2/10] Updating system and enabling necessary COPR repositories..."
-sudo dnf upgrade -y
-
-# Enable COPRs
-echo "  - Ensuring necessary COPR repositories are enabled:"
-# Hyprland COPR for core components
-if ! sudo dnf copr enable -y "solopasha/hyprland"; then
-    echo "Error: Failed to enable COPR repository 'solopasha/hyprland'. Please check the COPR name or internet connection."
-    exit 1 # Exit if this critical COPR cannot be enabled
-fi
-# Nerd Fonts COPR
-if ! sudo dnf copr enable -y "che/nerd-fonts"; then
-    echo "⚠️ Warning: COPR enable failed for 'che/nerd-fonts', proceeding without it. Nerd Fonts might need manual install."
-fi
-echo "COPR repositories enabled."
-
-
-# 3. Proactive Removal of potentially conflicting older versions
-echo "[3/10] Proactively removing conflicting DNF packages (if any) to ensure clean install from COPR/repos..."
-# List all packages that will be installed from COPRs or might cause conflicts
-CONFLICT_PKGS=(
-    hyprlang hyprutils hyprgraphics hyprpaper mpvpaper swaync wlogout
-    hypridle hyprlock hyprpicker hyprshot hyprsunset
-    # Other packages that might cause conflicts if old versions are present
-    # Add more here if you encounter persistent version conflicts
-)
-for pkg in "${CONFLICT_PKGS[@]}"; do
-    if sudo dnf list installed "$pkg" &>/dev/null; then
-        echo "  - Removing conflicting DNF package: $pkg"
-        sudo dnf remove -y "$pkg" || true # Use || true to prevent script exit if removal fails for non-critical reasons
-    else
-        echo "  - Conflicting DNF package $pkg not found, skipping removal."
-    fi
-done
-echo "Attempted to remove conflicting packages."
-
-
-# 4. Install system packages from Fedora repositories (dnf) and COPRs
-echo "[4/10] Installing core system packages and Hyprland components via DNF and COPRs..."
-sudo dnf install -y \
-    git curl unzip cargo pkgconfig \
-    cmake make gcc-c++ \
-    wayland-devel lz4-devel wayland-protocols-devel \
-    libpng-devel cairo-devel gdk-pixbuf2-devel \
-    file-devel \
-    libei-devel libinput-devel \
-    gtk3 gtk2 libnotify gsettings-desktop-schemas \
-    fontconfig \
-    dnf-plugins-core \
-    ImageMagick \
-    brightnessctl cava cliphist \
-    gnome-bluetooth-devel # for gnome-bluetooth-3.0 development files
-    # gobject-introspection and python3-gobject are base system for python3-gobject package
-    gpu-screen-recorder # From solopasha/hyprland COPR
-    grim slurp # For grimblast
-    hypridle hyprlock hyprpicker hyprshot hyprsunset # From solopasha/hyprland COPR
-    nvtop playerctl tesseract tmux upower vte-devel \
-    wl-clipboard wlogout wlinhibit # wlinhibit might need COPR or source, adding to dnf first
-    webp-pixbuf-loader # Might be in COPR, adding to dnf first
-    python3-gobject python3-numpy python3-pillow python3-psutil python3-requests python3-fabric \
-    python3-pip # Ensure pip is installed for later Python dependencies
-    mpv thunar thunar-archive-plugin mate-polkit \
-    sddm swayidle swaylock dmenu \
-    hyprland hyprpaper hyprlang hyprutils hyprgraphics \
-    mpvpaper swaync \
-    nerd-fonts # Base nerd fonts package
-    nerd-fonts-complete || \
-    { echo "Error: One or more DNF packages could not be installed. Please check the output above for missing packages or COPR issues."; exit 1; }
-echo "All system and COPR packages installed."
-
-
-# 5. Install remaining Python dependencies via pip
-echo "[5/10] Installing additional Python dependencies via pip..."
-PYTHON_PIP_PACKAGES=(
-    "ijson"
-    "pywayland"
-    "setproctitle"
-    "toml"
-    "watchdog"
-    "matugen" # matugen-bin from AUR is `matugen` from pip
-)
-PIP_REQUIREMENTS_FILE="/tmp/pip_requirements.txt"
-printf "%s\n" "${PYTHON_PIP_PACKAGES[@]}" > "$PIP_REQUIREMENTS_FILE"
-
-pip3 install --user -r "$PIP_REQUIREMENTS_FILE" || { echo "Warning: Some Python packages could not be installed via pip. Manual check might be needed."; }
-rm -f "$PIP_REQUIREMENTS_FILE"
-echo "Python dependencies installed."
-
-
-# 6. Install swww wallpaper daemon from source (if not in COPR/repos)
-echo "[6/10] Installing swww wallpaper daemon from source..."
-# swww is generally not in common Fedora Hyprland COPRs, so keeping source build for it.
-if ! command_exists swww; then
-    build_and_install_rust_project "https://github.com/LGFae/swww.git" "/tmp/swww" "swww"
-else
-    echo "swww already installed (likely from source), skipping source build."
+    echo "Cloning Ax-Shell..."
+    git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
+# --- Manual Installation Instructions ---
+echo ""
+echo "--- Manual Installation May Be Required ---"
+echo "The following packages are not directly available via DNF or common COPRs."
+echo "You might need to install them manually or build them from source."
 
-# 7. Install custom Fonts
-echo "[7/10] Installing custom fonts (Zed Sans and Tabler Icons)..."
-# Zed Sans Font
+# Instructions for matugen
+echo ""
+echo "- matugen (Original: matugen-bin): This is a Python-based utility."
+echo "  You might be able to install it via pip or clone its repository and run it directly."
+echo "  To install via pip (recommended if available):"
+echo "    pip install matugen"
+echo "  Or, to clone and use:"
+echo "    git clone https://github.com/material-foundation/matugen.git ~/matugen-source"
+echo "    # Follow matugen's specific installation/usage instructions."
+
+# Instructions for gray
+echo ""
+echo "- gray (Original: gray-git): This appears to be a theme or utility specific to Axenide's projects."
+echo "  Please refer to its GitHub repository for installation instructions, or manually place its files."
+echo "  GitHub: https://github.com/Axenide/gray"
+
+# Instructions for uwsm
+echo ""
+echo "- uwsm (Wayland Session Manager): This is a critical dependency for Ax-Shell and likely needs to be built from source."
+echo "  Please refer to its GitHub repository for detailed build instructions:"
+echo "  GitHub: https://github.com/Axenide/uwsm"
+echo "  Example basic build steps (may vary):"
+echo "    sudo dnf install -y meson ninja-build gcc pkg-config wayland-protocols-devel libinput-devel libxkbcommon-devel"
+echo "    git clone https://github.com/Axenide/uwsm.git ~/uwsm-source"
+echo "    cd ~/uwsm-source"
+echo "    meson build"
+echo "    ninja -C build"
+echo "    sudo ninja -C build install"
+echo "-----------------------------------------"
+
+echo ""
+echo "Installing required fonts..."
+
 FONT_URL="https://github.com/zed-industries/zed-fonts/releases/download/1.2.0/zed-sans-1.2.0.zip"
 FONT_DIR="$HOME/.fonts/zed-sans"
 TEMP_ZIP="/tmp/zed-sans-1.2.0.zip"
 
+# Check if Zed fonts are already installed
 if [ ! -d "$FONT_DIR" ]; then
-    echo "  - Downloading Zed Sans fonts from $FONT_URL..."
-    curl -L -o "$TEMP_ZIP" "$FONT_URL" || { echo "Error: Failed to download Zed Sans fonts."; exit 1; }
+    echo "Downloading Zed fonts from $FONT_URL..."
+    curl -L -o "$TEMP_ZIP" "$FONT_URL"
 
-    echo "  - Extracting Zed Sans fonts to $FONT_DIR..."
+    echo "Extracting Zed fonts to $FONT_DIR..."
     mkdir -p "$FONT_DIR"
-    unzip -o "$TEMP_ZIP" -d "$FONT_DIR" || { echo "Error: Failed to extract Zed Sans fonts."; exit 1; }
+    unzip -o "$TEMP_ZIP" -d "$FONT_DIR"
 
-    echo "  - Cleaning up temporary Zed Sans font zip..."
+    echo "Cleaning up temporary font file..."
     rm "$TEMP_ZIP"
 else
-    echo "  - Zed Sans Fonts are already installed. Skipping download and extraction."
-fi
-echo "Zed Sans Font installation complete."
-
-# Tabler Icons Font (from Ax-Shell assets)
-if [ ! -d "$HOME/.fonts/tabler-icons" ]; then
-    echo "  - Copying local Tabler Icons fonts to $HOME/.fonts/tabler-icons..."
-    mkdir -p "$HOME/.fonts/tabler-icons"
-    cp -r "$INSTALL_DIR/assets/fonts/"* "$HOME/.fonts" || { echo "Warning: Failed to copy Tabler Icons fonts. Ensure '$INSTALL_DIR/assets/fonts/' exists and contains fonts."; }
-else
-    echo "  - Local Tabler Icons fonts are already installed. Skipping copy."
-fi
-echo "Tabler Icons Font installation complete."
-
-# Update font cache for all new fonts
-echo "  - Updating font cache for all installed fonts..."
-fc-cache -fv || echo "Warning: Failed to update font cache. Font issues might occur."
-
-
-# 8. Install Icon & GTK themes
-echo "[8/10] Installing Tela Circle Dracula and Catppuccin themes..."
-cleanup_temp_dir "/tmp/tela" # Ensure clean slate before cloning
-git clone --depth 1 https://github.com/vinceliuice/Tela-circle-icon-theme.git /tmp/tela
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to clone Tela Circle Icon Theme repository."
-    exit 1
-fi
-if [ ! -d "/tmp/tela" ]; then
-    echo "Error: Cloned Tela Circle Icon Theme directory /tmp/tela does not exist."
-    exit 1
+    echo "Zed fonts are already installed. Skipping download and extraction."
 fi
 
-cd /tmp/tela
-if [ -f "./install.sh" ]; then
-    chmod +x ./install.sh
-    echo "  - Running Tela Circle Icon Theme install script..."
-    ./install.sh -a
-else
-    echo "Error: Tela Circle Icon Theme install.sh not found. Attempting manual copy (may not be complete)."
-    find . -maxdepth 2 -type d -name "Tela-circle-dracula*" -exec sudo cp -r {} /usr/share/icons/ \; || { echo "Error: Failed to manually copy Tela-circle-dracula theme."; }
-    sudo gtk-update-icon-cache -f -t /usr/share/icons/ || { echo "Warning: Failed to update GTK icon cache for Tela theme."; }
-fi
-cd - > /dev/null # Return to previous directory silently
-echo "Tela Circle Dracula Icons installed."
+# Copy local fonts provided within the Ax-Shell repository
+# Assuming these are actual font files (.ttf, .otf) intended for ~/.fonts
+LOCAL_FONT_SOURCE_DIR="$INSTALL_DIR/assets/fonts"
+LOCAL_FONT_DEST_DIR="$HOME/.fonts/ax-shell-local-fonts" # Use a dedicated directory to avoid conflicts
 
-cleanup_temp_dir "/tmp/catppuccin" # Ensure clean slate before cloning
-git clone --depth 1 https://github.com/catppuccin/gtk.git /tmp/catppuccin
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to clone Catppuccin GTK Theme repository."
-    exit 1
-fi
-if [ ! -d "/tmp/catppuccin" ]; then
-    echo "Error: Cloned Catppuccin GTK Theme directory /tmp/catppuccin does not exist."
-    exit 1
-fi
-
-cd /tmp/catppuccin
-# Check if install.sh exists and make it executable before running
-if [ -f "./install.sh" ]; then
-    chmod +x "./install.sh"
-    echo "  - Running Catppuccin GTK Theme install script (Mocha)..."
-    ./install.sh mocha
-else
-    echo "Error: Catppuccin GTK Theme install.sh not found. Attempting manual copy (may not be complete)."
-    find . -maxdepth 2 -type d -name "Catppuccin-Mocha*" -exec sudo cp -r {} /usr/share/themes/ \; || { echo "Error: Failed to manually copy Catppuccin-Mocha theme."; }
-fi
-cd - > /dev/null # Return to previous directory silently
-echo "Catppuccin GTK theme installed."
-
-# Apply themes
-echo "  - Applying GTK and Icon themes system-wide..."
-gsettings set org.gnome.desktop.interface icon-theme "Tela-circle-dracula"
-gsettings set org.gnome.desktop.interface gtk-theme "Catppuccin-Mocha"
-echo "Themes applied."
-
-
-# 9. File manager cleanup and default
-echo "[9/10] Removing other file managers and setting Thunar as default..."
-sudo dnf remove -y dolphin nautilus nemo pantheon-files || true
-xdg-mime default Thunar.desktop inode/directory application/x-zerosize
-echo "Thunar set as default file manager."
-
-
-# 10. Final Ax-Shell configuration and SDDM activation
-echo "[10/10] Completing Ax-Shell setup and enabling SDDM..."
-
-# Ax-Shell specific configuration script execution
-echo "  - Running Ax-Shell's config.py script..."
-python3 "$INSTALL_DIR/config/config.py" || { echo "Warning: Ax-Shell config.py script failed. Ax-Shell might not function correctly."; }
-
-# Start Ax-Shell (uwsm integration)
-echo "  - Starting Ax-Shell (if not already running)..."
-killall ax-shell 2>/dev/null || true # Kill existing instances
-uwsm app -- python3 "$INSTALL_DIR/main.py" > /dev/null 2>&1 & disown
-echo "  - Ax-Shell launched in the background."
-
-# Enable and start SDDM
-echo "  - Enabling and starting SDDM display manager..."
-# Ensure sddm is installed (it's in step 4, but this is a final check)
-if ! command_exists sddm; then
-    sudo dnf install -y sddm || { echo "Error: sddm could not be installed, please check DNF."; exit 1; }
-fi
-# Disable any other active display managers that might conflict
-echo "    - Checking for and disabling conflicting display managers..."
-for dm_service in gdm lightdm xdm; do
-    if systemctl is-enabled "$dm_service" &>/dev/null; then
-        echo "      - Disabling conflicting display manager: $dm_service"
-        sudo systemctl disable "$dm_service" || true
+if [ -d "$LOCAL_FONT_SOURCE_DIR" ] && [ "$(find "$LOCAL_FONT_SOURCE_DIR" -maxdepth 1 -type f -name "*.ttf" -o -name "*.otf" | wc -l)" -gt 0 ]; then
+    if [ ! -d "$LOCAL_FONT_DEST_DIR" ] || [ "$(find "$LOCAL_FONT_DEST_DIR" -maxdepth 1 -type f -name "*.ttf" -o -name "*.otf" | wc -l)" -eq 0 ]; then
+        echo "Copying local fonts from Ax-Shell to $LOCAL_FONT_DEST_DIR..."
+        mkdir -p "$LOCAL_FONT_DEST_DIR"
+        cp -r "$LOCAL_FONT_SOURCE_DIR/"* "$LOCAL_FONT_DEST_DIR/"
+    else
+        echo "Local fonts already appear to be copied. Skipping copy."
     fi
-done
-sudo systemctl daemon-reload
-sudo systemctl enable sddm
-sudo systemctl start sddm # Use start explicitly
-sudo systemctl set-default graphical.target
-echo "  - SDDM enabled and started. Check 'systemctl status sddm' if issues persist after reboot."
+else
+    echo "No local fonts found in '$LOCAL_FONT_SOURCE_DIR' or directory does not exist. Skipping local font copy."
+fi
 
-# Cleanup temporary folders
-echo "--- Cleaning up temporary build directories ---"
-cleanup_temp_dir "/tmp/swww"
-cleanup_temp_dir "/tmp/tela"
-cleanup_temp_dir "/tmp/catppuccin"
-# Remove temp files created during font download
-rm -f "$TEMP_ZIP"
-echo "Temporary directories cleaned up."
+echo "Rebuilding font cache to register new fonts..."
+fc-cache -fv
 
-echo -e "\n✅ Ax-Shell and Hyprland environment installed successfully on Fedora 42!\n"
-echo "------------------------------------------------------------"
-echo "IMPORTANT NEXT STEPS:"
-echo "1. Reboot your system: 'sudo reboot'"
-echo "2. After reboot, select 'Hyprland' session from SDDM."
-echo "3. Verify Ax-Shell is running and configured by checking its logs or functionality."
-echo "4. You might need to adjust GTK theme variants via 'gsettings set org.gnome.desktop.interface gtk-theme <variant>' or a GUI tool if you prefer a different Catppuccin flavor."
-echo "5. To update your Ax-Shell dotfiles and reinstall packages (e.g., after pulling changes to your local repo):"
-echo "   cd $INSTALL_DIR && git pull origin main && bash ./install.sh" # Assuming 'main' is your default branch for Ax-Shell
-echo "Enjoy your new Ax-Shell environment on Fedora 42!"
+python "$INSTALL_DIR/config/config.py"
+echo "Attempting to start Ax-Shell..."
+
+# Check if uwsm is installed before attempting to use it
+if ! command -v uwsm &>/dev/null; then
+    echo "Warning: 'uwsm' command not found. Ax-Shell might not start correctly."
+    echo "Please ensure 'uwsm' is installed and in your PATH, possibly by building it from source as described above."
+else
+    # Attempt to kill any existing Ax-Shell processes
+    pkill -f "python $INSTALL_DIR/main.py" 2>/dev/null || true
+    # Run Ax-Shell via uwsm, disowning the process
+    uwsm app -- python "$INSTALL_DIR/main.py" > /dev/null 2>&1 & disown
+fi
+
+echo ""
+echo "Installation process complete. Please check the warnings above regarding manual installations."
+echo "If Ax-Shell doesn't start, ensure 'uwsm' is correctly installed and in your PATH."
