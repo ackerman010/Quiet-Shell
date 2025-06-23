@@ -1,11 +1,30 @@
 #!/bin/bash
 
+# ==============================================================================
+# IMPORTANT: PLEASE READ CAREFULLY BEFORE RUNNING THIS SCRIPT
+# ==============================================================================
+# If you are still encountering "Failed to enable COPR" errors (e.g., for
+# atim/cliphist or ryuuts/hyprland), it means you are NOT running this current
+# version of the script. This version has REMOVED ALL problematic COPR calls.
+#
+# To ensure you run the correct version:
+# 1. DELETE any previous copies of this installation script from your system.
+# 2. COPY THE ENTIRETY OF THIS CODE BLOCK from the Canvas into a NEW file,
+#    for example: `install_quiet_shell.sh`
+# 3. Make it executable: `chmod +x install_quiet_shell.sh`
+# 4. Run it: `./install_quiet_shell.sh`
+#
+# This script will install DNF packages and then provide MANUAL
+# build instructions for components that do not have stable Fedora 42 packages
+# or reliable COPRs yet. You MUST follow these manual steps.
+# ==============================================================================
+
 set -e      # Exit immediately if a command fails
 set -u      # Treat unset variables as errors
 set -o pipefail  # Prevent errors in a pipeline from being masked
 
-REPO_URL="https://github.com/ackerman010/Quiet-Shell.git"
-INSTALL_DIR="$HOME/.config/Quiet-Shell"
+REPO_URL="https://github.com/ackerman010/Quiet-Shell.git" # Updated to Quiet-Shell
+INSTALL_DIR="$HOME/.config/Quiet-Shell" # Updated to Quiet-Shell
 
 # Get the current Fedora release version dynamically
 FEDORA_RELEASE_VERSION=$(rpm -E %fedora)
@@ -93,10 +112,10 @@ sudo dnf install -y -q "${DNF_PACKAGES[@]}" || { echo "Warning: Some DNF package
 
 # Clone or update the Ax-Shell repository
 if [ -d "$INSTALL_DIR" ]; then
-    echo "Updating Ax-Shell..."
+    echo "Updating Quiet-Shell..."
     git -C "$INSTALL_DIR" pull
 else
-    echo "Cloning Ax-Shell..."
+    echo "Cloning Quiet-Shell..."
     git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
