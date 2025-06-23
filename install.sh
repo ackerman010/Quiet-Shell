@@ -4,8 +4,8 @@ set -e      # Exit immediately if a command fails
 set -u      # Treat unset variables as errors
 set -o pipefail  # Prevent errors in a pipeline from being masked
 
-REPO_URL="https://github.com/Axenide/Ax-Shell.git"
-INSTALL_DIR="$HOME/.config/Ax-Shell"
+REPO_URL="https://github.com/ackerman010/Quiet-Shell.git"
+INSTALL_DIR="$HOME/.config/Quiet-Shell"
 
 # Get the current Fedora release version dynamically
 FEDORA_RELEASE_VERSION=$(rpm -E %fedora)
