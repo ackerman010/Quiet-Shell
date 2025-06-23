@@ -7,6 +7,14 @@ set -o pipefail  # Prevent errors in a pipeline from being masked
 REPO_URL="https://github.com/Axenide/Ax-Shell.git"
 INSTALL_DIR="$HOME/.config/Ax-Shell"
 
+# Get the current Fedora release version dynamically
+FEDORA_RELEASE_VERSION=$(rpm -E %fedora)
+if [ -z "$FEDORA_RELEASE_VERSION" ]; then
+    echo "Error: Could not determine Fedora release version. Please ensure 'rpm -E %fedora' works."
+    exit 1
+fi
+echo "Detected Fedora Release Version: $FEDORA_RELEASE_VERSION"
+
 # DNF packages available in official Fedora repositories
 DNF_PACKAGES=(
     brightnessctl
@@ -75,18 +83,20 @@ sudo dnf check-update || true # Allow check-update to fail without stopping scri
 # These COPRs provide many of the Hyprland-related and other tools.
 echo "Enabling COPR repositories..."
 # COPR for Hyprland and related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset, swww)
-sudo dnf copr enable ryuuts/hyprland -y || { echo "Error: Failed to enable ryuuts/hyprland COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+# Using %fedora to dynamically match the current Fedora version.
+sudo dnf copr enable ryuuts/hyprland -y -q || { echo "Error: Failed to enable ryuuts/hyprland COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 # COPR for cliphist
-sudo dnf copr enable atim/cliphist -y || { echo "Error: Failed to enable atim/cliphist COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+sudo dnf copr enable atim/cliphist -y -q || { echo "Error: Failed to enable atim/cliphist COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 # COPR for gpu-screen-recorder
-sudo dnf copr enable atim/gpu-screen-recorder -y || { echo "Error: Failed to enable atim/gpu-screen-recorder COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+sudo dnf copr enable atim/gpu-screen-recorder -y -q || { echo "Error: Failed to enable atim/gpu-screen-recorder COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 # COPR for Nerd Fonts (replaces ttf-nerd-fonts-symbols-mono)
-sudo dnf copr enable atim/nerd-fonts -y || { echo "Error: Failed to enable atim/nerd-fonts COPR. Please check your internet connection and try again. Exiting."; exit 1; }
+sudo dnf copr enable atim/nerd-fonts -y -q || { echo "Error: Failed to enable atim/nerd-fonts COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 
 # Install required DNF packages and COPR packages
 echo "Installing required DNF and COPR packages..."
 # Using --allowerasing can resolve conflicts but use with caution. -y for non-interactive install.
-sudo dnf install -y "${DNF_PACKAGES[@]}" "${COPR_PACKAGES[@]}" || { echo "Warning: Some DNF/COPR packages failed to install. Continuing with the script."; }
+# The -q flag is added to dnf install to reduce verbosity, making output cleaner.
+sudo dnf install -y -q "${DNF_PACKAGES[@]}" "${COPR_PACKAGES[@]}" || { echo "Warning: Some DNF/COPR packages failed to install. Continuing with the script."; }
 
 # Clone or update the Ax-Shell repository
 if [ -d "$INSTALL_DIR" ]; then
