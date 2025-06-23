@@ -1,122 +1,129 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e  # Exit immediately if a command fails
-set -u  # Treat unset variables as errors
-set -o pipefail  # Prevent errors in a pipeline from being masked
-
+# ─── Configuration ───────────────────────────────────────────────────────────
 REPO_URL="https://github.com/Axenide/Ax-Shell.git"
 INSTALL_DIR="$HOME/.config/Ax-Shell"
-PACKAGES=(
+
+# COPR Repositories
+COPRS=(
+  solopasha/hyprland    # Hyprland utilities: hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset, polkit agent  (solopasha/hyprland)
+  materka/swww          # Animated wallpaper daemon and client (materka/swww)
+)
+
+# DNF packages (Fedora 42 names)
+DNF_PKGS=(
   brightnessctl
   cava
   cliphist
-  fabric-cli-git
-  gnome-bluetooth-3.0
+  gnome-bluetooth
   gobject-introspection
-  gpu-screen-recorder
-  hypridle
-  hyprlock
-  hyprpicker
-  hyprshot
-  hyprsunset
   imagemagick
   libnotify
-  matugen-bin
+  matugen         # if unavailable, DNF will skip it
   noto-fonts-emoji
   nvtop
   playerctl
-  python-fabric-git
-  python-gobject
-  python-ijson
-  python-numpy
-  python-pillow
-  python-psutil
-  python-pywayland
-  python-requests
-  python-setproctitle
-  python-toml
-  python-watchdog
   swappy
-  swww-git
   tesseract
   tmux
-  ttf-nerd-fonts-symbols-mono
   unzip
   upower
-  uwsm
   vte3
   webp-pixbuf-loader
   wl-clipboard
+  # Hyprland utilities from COPR
+  hypridle hyprlock hyprpicker hyprshot hyprsunset polkit-gnome-auth
+  # swww from COPR
+  swww
+  # Python helpers
+  python3-gobject
+  python3-ijson
+  python3-numpy
+  python3-pillow
+  python3-psutil
+  python3-requests
+  python3-setproctitle
+  python3-toml
+  python3-watchdog
 )
 
-# Prevent running as root
+# Python-only packages (installed via pip3 --user)
+PIP_PKGS=(
+  fabric      # fabric-cli-git
+  pywayland
+)
+
+# Fonts
+ZED_FONT_URL="https://github.com/zed-industries/zed-fonts/releases/download/1.2.0/zed-sans-1.2.0.zip"
+ZED_FONT_DIR="$HOME/.local/share/fonts/zed-sans"
+TABLER_SRC_DIR="$INSTALL_DIR/assets/fonts"
+TABLER_DST_DIR="$HOME/.local/share/fonts/tabler-icons"
+
+# ─── Safety checks ─────────────────────────────────────────────────────────────
 if [ "$(id -u)" -eq 0 ]; then
-    echo "Please do not run this script as root."
-    exit 1
+  echo "⚠️  Please do not run this as root; re-run as your regular user."
+  exit 1
 fi
 
-aur_helper="yay"
+# ─── Enable COPR Repos ─────────────────────────────────────────────────────────
+echo "🔧 Enabling COPR repos..."
+sudo dnf install -y dnf-plugins-core
+for c in "${COPRS[@]}"; do
+  sudo dnf copr enable -y "$c"
+done
 
-# Check if paru exists, otherwise use yay
-if command -v paru &>/dev/null; then
-    aur_helper="paru"
-elif ! command -v yay &>/dev/null; then
-    echo "Installing yay-bin..."
-    tmpdir=$(mktemp -d)
-    git clone --depth=1 https://aur.archlinux.org/yay-bin.git "$tmpdir/yay-bin"
-    (cd "$tmpdir/yay-bin" && makepkg -si --noconfirm)
-    rm -rf "$tmpdir"
+# ─── Install system packages ──────────────────────────────────────────────────
+echo "📦 Installing system packages via DNF..."
+sudo dnf makecache
+sudo dnf install -y "${DNF_PKGS[@]}" || true
+
+# ─── Install Python modules via pip3 --user ────────────────────────────────────
+echo "🐍 Installing Python modules (user)..."
+if ! command -v pip3 &>/dev/null; then
+  sudo dnf install -y python3-pip
 fi
+pip3 install --user "${PIP_PKGS[@]}"
 
-# Clone or update the repository
-if [ -d "$INSTALL_DIR" ]; then
-    echo "Updating Ax-Shell..."
-    git -C "$INSTALL_DIR" pull
+# ─── Clone or update Ax-Shell repo ─────────────────────────────────────────────
+if [ -d "$INSTALL_DIR/.git" ]; then
+  echo "🔄 Updating Ax-Shell..."
+  git -C "$INSTALL_DIR" pull --ff-only
 else
-    echo "Cloning Ax-Shell..."
-    git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
+  echo "📥 Cloning Ax-Shell into $INSTALL_DIR..."
+  git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# Install required packages using the detected AUR helper (only if missing)
-echo "Installing required packages..."
-$aur_helper -Syy --needed --devel --noconfirm "${PACKAGES[@]}" || true
-
-echo "Installing gray-git..."
-yes | $aur_helper -Syy --needed --devel --noconfirm gray-git || true
-
-echo "Installing required fonts..."
-
-FONT_URL="https://github.com/zed-industries/zed-fonts/releases/download/1.2.0/zed-sans-1.2.0.zip"
-FONT_DIR="$HOME/.fonts/zed-sans"
-TEMP_ZIP="/tmp/zed-sans-1.2.0.zip"
-
-# Check if fonts are already installed
-if [ ! -d "$FONT_DIR" ]; then
-    echo "Downloading fonts from $FONT_URL..."
-    curl -L -o "$TEMP_ZIP" "$FONT_URL"
-
-    echo "Extracting fonts to $FONT_DIR..."
-    mkdir -p "$FONT_DIR"
-    unzip -o "$TEMP_ZIP" -d "$FONT_DIR"
-
-    echo "Cleaning up..."
-    rm "$TEMP_ZIP"
+# ─── Install Zed-Sans fonts ───────────────────────────────────────────────────
+if [ ! -d "$ZED_FONT_DIR" ]; then
+  echo "🔤 Downloading & installing Zed-Sans fonts..."
+  mkdir -p "$ZED_FONT_DIR"
+  curl -L -o /tmp/zed-sans.zip "$ZED_FONT_URL"
+  unzip -o /tmp/zed-sans.zip -d "$ZED_FONT_DIR"
+  rm /tmp/zed-sans.zip
 else
-    echo "Fonts are already installed. Skipping download and extraction."
+  echo "✅ Zed-Sans already installed."
 fi
 
-# Copy local fonts if not already present
-if [ ! -d "$HOME/.fonts/tabler-icons" ]; then
-    echo "Copying local fonts to $HOME/.fonts/tabler-icons..."
-    mkdir -p "$HOME/.fonts/tabler-icons"
-    cp -r "$INSTALL_DIR/assets/fonts/"* "$HOME/.fonts"
+# ─── Install Tabler icon fonts ────────────────────────────────────────────────
+if [ -d "$TABLER_SRC_DIR" ] && [ ! -d "$TABLER_DST_DIR" ]; then
+  echo "🔤 Copying Tabler icon fonts..."
+  mkdir -p "$TABLER_DST_DIR"
+  cp -r "$TABLER_SRC_DIR/"* "$TABLER_DST_DIR/"
 else
-    echo "Local fonts are already installed. Skipping copy."
+  echo "✅ Tabler icons already installed or not present."
 fi
 
-python "$INSTALL_DIR/config/config.py"
-echo "Starting Ax-Shell..."
-killall ax-shell 2>/dev/null || true
-uwsm app -- python "$INSTALL_DIR/main.py" > /dev/null 2>&1 & disown
+# ─── Refresh font cache ────────────────────────────────────────────────────────
+echo "🔄 Refreshing font cache..."
+fc-cache -f
 
-echo "Installation complete."
+# ─── Generate config and launch Ax-Shell ───────────────────────────────────────
+echo "⚙️  Running Ax-Shell config script..."
+python3 "$INSTALL_DIR/config/config.py"
+
+echo "🚀 Starting Ax-Shell..."
+pkill -f 'python3 .*/main.py' 2>/dev/null || true
+nohup python3 "$INSTALL_DIR/main.py" >/dev/null 2>&1 & disown
+
+echo "🎉 All done! Ax-Shell is now installed and running."
