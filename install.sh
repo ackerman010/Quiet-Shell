@@ -84,7 +84,7 @@ sudo dnf check-update || true # Allow check-update to fail without stopping scri
 echo "Enabling COPR repositories..."
 # COPR for Hyprland and related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset, swww)
 # Using %fedora to dynamically match the current Fedora version.
-sudo dnf copr enable ryuuts/hyprland -y -q || { echo "Error: Failed to enable ryuuts/hyprland COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
+sudo dnf copr enable solopasha/hyprland -y -q || { echo "Error: Failed to enable solopasha/hyprland COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 # COPR for cliphist
 sudo dnf copr enable atim/cliphist -y -q || { echo "Error: Failed to enable atim/cliphist COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
 # COPR for gpu-screen-recorder
@@ -140,7 +140,7 @@ echo "    git clone https://github.com/Axenide/uwsm.git ~/uwsm-source"
 echo "    cd ~/uwsm-source"
 echo "    meson build"
 echo "    ninja -C build"
-echo "    sudo ninja -C build install"
+    sudo ninja -C build install"
 echo "-----------------------------------------"
 
 echo ""
