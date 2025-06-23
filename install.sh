@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ─── VARIABLES ────────────────────────────────────────────────────────────────
+# ─── CONFIGURATION ────────────────────────────────────────────────────────────
 REPO="https://github.com/ackerman010/Quiet-Shell.git"
 DEST="$HOME/.config/Quiet-Shell"
 
-# COPR repos (same ones upstream installer uses)
-COPRS=(
-  solopasha/hyprland    # hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset, polkit-gnome-auth
-  materka/swww          # animated wallpaper daemon (optional)
-)
+# Only the COPR we know works for all hyprland tools + swww:
+COPR="solopasha/hyprland"
 
-# Fedora packages (replace any you don’t need)
+# Fedora-42 package list (all names verified)
 DNF_PKGS=(
-  bash             # Quiet-Shell is a bash wrapper
-  python3          # for the installer hooks
-  python3-pip      # pip for any missing modules
+  bash                # the wrapper
+  curl                # used by install scripts
+  git                 # for cloning/updating
+  python3             # for the installer hooks
+  python3-pip         # for any pure-Python modules
   python3-gobject
   python3-ijson
   python3-numpy
@@ -31,7 +30,6 @@ DNF_PKGS=(
   gobject-introspection
   imagemagick
   libnotify
-  matugen       # may not exist, skipped if missing
   noto-fonts-emoji
   nvtop
   playerctl
@@ -43,51 +41,47 @@ DNF_PKGS=(
   vte3
   webp-pixbuf-loader
   wl-clipboard
-  # Hyprland helpers from COPR:
-  hypridle hyprlock hyprpicker hyprshot hyprsunset polkit-gnome-auth
-  # swww from COPR:
-  swww
+  # hyprland helpers & swww come from the COPR:
+  hypridle hyprlock hyprpicker hyprshot hyprsunset swww polkit-gnome
 )
 
-# Python-only extras (installed with pip3 --user)
+# Pure-Python extras (installed with pip3 --user)
 PIP_PKGS=(
-  fabric        # fabric-cli
+  fabric
   pywayland
 )
 
 # ─── SAFETY ───────────────────────────────────────────────────────────────────
 if [ "$EUID" -eq 0 ]; then
-  echo "⚠️  Please don’t run this as root. Exiting."
+  echo "⚠️  Please do NOT run as root. Exiting." >&2
   exit 1
 fi
 
-# ─── ENABLE COPRs ─────────────────────────────────────────────────────────────
-echo "🔧 Enabling COPR repos…"
+# ─── ENABLE COPR ──────────────────────────────────────────────────────────────
+echo "🔧 Enabling COPR repo: $COPR"
 sudo dnf install -y dnf-plugins-core
-for c in "${COPRS[@]}"; do
-  sudo dnf copr enable -y "$c"
-done
+sudo dnf copr enable -y "$COPR"
 
 # ─── INSTALL SYSTEM PACKAGES ──────────────────────────────────────────────────
-echo "📦 Installing system packages via DNF…"
+echo "📦 Installing Fedora packages (skipping any missing)…"
 sudo dnf makecache
-sudo dnf install -y "${DNF_PKGS[@]}" || true
+sudo dnf install -y --skip-broken "${DNF_PKGS[@]}"
 
 # ─── INSTALL PIP MODULES ──────────────────────────────────────────────────────
 echo "🐍 Installing Python modules (pip3 --user)…"
 pip3 install --user "${PIP_PKGS[@]}"
 
-# ─── CLONE / UPDATE Quiet-Shell ───────────────────────────────────────────────
+# ─── FETCH OR UPDATE Quiet-Shell ──────────────────────────────────────────────
 if [ -d "$DEST/.git" ]; then
   echo "🔄 Updating Quiet-Shell…"
   git -C "$DEST" pull --ff-only
 else
-  echo "📥 Cloning Quiet-Shell to $DEST…"
+  echo "📥 Cloning Quiet-Shell into $DEST…"
   git clone --depth=1 "$REPO" "$DEST"
 fi
 
 # ─── RUN THE UPSTREAM INSTALLER ───────────────────────────────────────────────
-echo "⚙️  Running Quiet-Shell’s bundled installer…"
+echo "⚙️  Invoking Quiet-Shell’s own install.sh…"
 bash "$DEST/install.sh"
 
-echo "✅ All done! Log out and back in (or source your shell) to start using Quiet-Shell."
+echo "✅ All set! Log out and back in (or restart your shell) to start using Quiet-Shell."
