@@ -16,15 +16,17 @@ fi
 echo "Detected Fedora Release Version: $FEDORA_RELEASE_VERSION"
 
 # DNF packages available in official Fedora repositories
+# Removed cliphist, gpu-screen-recorder, and nerd-fonts from here as they will be
+# either built from source or handled differently.
 DNF_PACKAGES=(
     brightnessctl
     cava
     gnome-bluetooth          # Equivalent to gnome-bluetooth-3.0 (runtime)
-    gnome-bluetooth-libs-devel # Development files for gnome-bluetooth (added based on dnf search)
+    gnome-bluetooth-libs-devel # Development files for gnome-bluetooth
     gobject-introspection
     ImageMagick              # Equivalent to imagemagick
     libnotify
-    google-noto-color-emoji-fonts # Equivalent to noto-fonts-emoji
+    google-noto-color-emoji-fonts # Equivalent to noto-fonts-emoji (official Fedora package for these)
     nvtop
     playerctl
     python3-fabric           # Equivalent to python-fabric-git, provides stable Fabric
@@ -48,16 +50,13 @@ DNF_PACKAGES=(
     wl-clipboard
 )
 
-# Packages that typically require COPR repositories on Fedora
-# These are often development versions or niche tools.
-COPR_PACKAGES=(
-    cliphist
-    gpu-screen-recorder
-    nerd-fonts               # For ttf-nerd-fonts-symbols-mono (installs a collection of Nerd Fonts)
-)
+# All packages that were previously in COPR_PACKAGES are now in BUILD_FROM_SOURCE_PACKAGES
+# as COPRs for Fedora 42 are proving to be unreliable.
+COPR_PACKAGES=()
 
 # Packages that are specific to the original Arch setup or less common,
-# and may need to be built from source or installed manually on Fedora.
+# and need to be built from source or installed manually on Fedora due to
+# lack of direct DNF packages or reliable COPRs for Fedora 42.
 BUILD_FROM_SOURCE_PACKAGES=(
     hyprland                # Core Hyprland compositor
     hypridle                # Hyprland idle daemon
@@ -66,9 +65,12 @@ BUILD_FROM_SOURCE_PACKAGES=(
     hyprshot                # Hyprland screenshot utility
     hyprsunset              # Hyprland feature/utility, potentially part of Hyprland
     swww                    # Wallpaper daemon for Wayland
+    cliphist                # Clipboard history manager
+    gpu-screen-recorder     # Screen recording utility
     matugen                 # Original: matugen-bin. A Python project.
     gray                    # Original: gray-git. A theme by Axenide.
     uwsm                    # Wayland Session Manager by Axenide, a dependency of Ax-Shell itself.
+    nerd-fonts              # Although google-noto-color-emoji-fonts is in DNF, a broader Nerd Font install might be needed.
 )
 
 # Prevent running as root for safety
@@ -80,21 +82,14 @@ fi
 echo "Updating DNF package cache..."
 sudo dnf check-update || true # Allow check-update to fail without stopping script if no updates are available
 
-# Enable necessary COPR repositories
-# These COPRs provide general purpose tools or those less problematic than Hyprland.
-echo "Enabling COPR repositories for remaining packages..."
-# COPR for cliphist
-sudo dnf copr enable atim/cliphist -y -q || { echo "Error: Failed to enable atim/cliphist COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
-# COPR for gpu-screen-recorder
-sudo dnf copr enable atim/gpu-screen-recorder -y -q || { echo "Error: Failed to enable atim/gpu-screen-recorder COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
-# COPR for Nerd Fonts (replaces ttf-nerd-fonts-symbols-mono)
-sudo dnf copr enable atim/nerd-fonts -y -q || { echo "Error: Failed to enable atim/nerd-fonts COPR for Fedora $FEDORA_RELEASE_VERSION. This COPR might not yet support your Fedora version. Exiting."; exit 1; }
+# No COPR repositories will be enabled automatically due to repeated 404 errors.
+# All previously COPR-dependent packages are now expected to be built from source.
+echo "Skipping COPR repository enablement due to Fedora 42 availability issues."
 
-# Install required DNF packages and COPR packages
-echo "Installing required DNF and COPR packages..."
-# Using --allowerasing can resolve conflicts but use with caution. -y for non-interactive install.
-# The -q flag is added to dnf install to reduce verbosity, making output cleaner.
-sudo dnf install -y -q "${DNF_PACKAGES[@]}" "${COPR_PACKAGES[@]}" || { echo "Warning: Some DNF/COPR packages failed to install. Continuing with the script."; }
+
+# Install required DNF packages only
+echo "Installing required DNF packages..."
+sudo dnf install -y -q "${DNF_PACKAGES[@]}" || { echo "Warning: Some DNF packages failed to install. Continuing with the script."; }
 
 # Clone or update the Ax-Shell repository
 if [ -d "$INSTALL_DIR" ]; then
@@ -107,15 +102,22 @@ fi
 
 # --- Manual Installation Instructions ---
 echo ""
-echo "--- MANUAL INSTALLATION REQUIRED FOR HYPRLAND AND RELATED COMPONENTS ---"
-echo "Due to potential COPR availability issues for Fedora $FEDORA_RELEASE_VERSION, "
-echo "Hyprland and its ecosystem tools need to be built from source."
-echo "You will need to install build dependencies first:"
+echo "--- MANUAL INSTALLATION REQUIRED FOR MANY COMPONENTS ---"
+echo "Due to current COPR unavailability for Fedora $FEDORA_RELEASE_VERSION, "
+echo "many of the required tools need to be built from source or installed manually."
+
+echo ""
+echo "First, install common build dependencies for various projects:"
 echo "sudo dnf install -y meson ninja-build gcc-c++ pkg-config wayland-devel wayland-protocols-devel \
                        libinput-devel libxkbcommon-devel pixman-devel pango-devel cairo-devel \
                        systemd-devel seatd-devel polkit-devel xdg-desktop-portal-devel libdisplay-info-devel \
                        libdrm-devel systemd-libs-devel ncurses-devel libevdev-devel upower-devel \
-                       wlroots-devel # This is crucial for Hyprland"
+                       rust cargo # For Rust-based projects like swww, cliphist, gpu-screen-recorder"
+echo "sudo dnf install -y go # For Go-based projects like cliphist"
+echo "sudo dnf install -y # Ensure Python build dependencies if any Python packages need compilation (e.g., python3-devel)"
+
+echo ""
+echo "--- Specific Build Instructions for Key Components: ---"
 
 echo ""
 echo "- Hyprland and its related tools (hypridle, hyprlock, hyprpicker, hyprshot, hyprsunset):"
@@ -131,18 +133,36 @@ echo "  Note: The utilities (hypridle, hyprlock, hyprpicker, hyprshot) are often
 
 echo ""
 echo "- swww (Wallpaper daemon):"
-echo "  This also needs to be built from source. Check its GitHub page for specific build dependencies and instructions."
+echo "  This is a Rust-based project. Check its GitHub page for specific build dependencies and instructions."
 echo "  GitHub: https://github.com/Horus645/swww"
 echo "  Example basic build steps (may vary):"
-echo "    sudo dnf install -y rust cargo # Install Rust toolchain if not already present"
 echo "    git clone https://github.com/Horus645/swww.git ~/swww-source"
 echo "    cd ~/swww-source"
 echo "    cargo build --release"
 echo "    sudo install -Dm755 target/release/swww /usr/local/bin/swww"
 
 echo ""
+echo "- cliphist (Clipboard history manager):"
+echo "  This is a Go-based project. Check its GitHub page for specific build dependencies and instructions."
+echo "  GitHub: https://github.com/sentriz/cliphist"
+echo "  Example basic build steps (may vary):"
+echo "    git clone https://github.com/sentriz/cliphist.git ~/cliphist-source"
+echo "    cd ~/cliphist-source"
+echo "    go build -o cliphist"
+echo "    sudo install -Dm755 cliphist /usr/local/bin/cliphist"
+
+echo ""
+echo "- gpu-screen-recorder:"
+echo "  This is also a Go-based project. Check its GitHub page for specific build dependencies and instructions."
+echo "  GitHub: https://github.com/russelltg/gpu-screen-recorder"
+echo "  Example basic build steps (may vary):"
+echo "    git clone https://github.com/russelltg/gpu-screen-recorder.git ~/gpu-screen-recorder-source"
+echo "    cd ~/gpu-screen-recorder-source"
+echo "    go build -o gpu-screen-recorder"
+echo "    sudo install -Dm755 gpu-screen-recorder /usr/local/bin/gpu-screen-recorder"
+
+echo ""
 echo "- matugen (Original: matugen-bin): This is a Python-based utility."
-echo "  You might be able to install it via pip or clone its repository and run it directly."
 echo "  To install via pip (recommended if available):"
 echo "    pip install matugen"
 echo "  Or, to clone and use:"
@@ -159,16 +179,22 @@ echo "- uwsm (Wayland Session Manager): This is a critical dependency for Ax-She
 echo "  Please refer to its GitHub repository for detailed build instructions:"
 echo "  GitHub: https://github.com/Axenide/uwsm"
 echo "  Example basic build steps (may vary):"
-echo "    sudo dnf install -y meson ninja-build gcc pkg-config wayland-protocols-devel libinput-devel libxkbcommon-devel"
 echo "    git clone https://github.com/Axenide/uwsm.git ~/uwsm-source"
 echo "    cd ~/uwsm-source"
 echo "    meson build"
 echo "    ninja -C build"
-    sudo ninja -C build install"
+echo "    sudo ninja -C build install"
+
+echo ""
+echo "- Nerd Fonts:"
+echo "  If the 'google-noto-color-emoji-fonts' package from DNF is not sufficient, you might need to install more comprehensive Nerd Fonts."
+echo "  You can download them manually from their GitHub releases page and extract them to ~/.fonts, then run 'fc-cache -fv'."
+echo "  GitHub: https://github.com/ryanoasis/nerd-fonts/releases"
+
 echo "-----------------------------------------"
 
 echo ""
-echo "Installing required fonts..."
+echo "Installing required fonts from Zed Industries..."
 
 FONT_URL="https://github.com/zed-industries/zed-fonts/releases/download/1.2.0/zed-sans-1.2.0.zip"
 FONT_DIR="$HOME/.fonts/zed-sans"
@@ -224,5 +250,5 @@ else
 fi
 
 echo ""
-echo "Installation process complete. Please check the warnings above regarding manual installations."
-echo "If Ax-Shell doesn't start, ensure 'uwsm' is correctly installed and in your PATH."
+echo "Installation process complete. Please ensure you have manually built and installed the necessary components listed above."
+echo "If Ax-Shell doesn't start, double-check all manual installation steps."
